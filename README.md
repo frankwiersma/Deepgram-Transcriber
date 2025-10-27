@@ -13,19 +13,20 @@ A modern, browser-based web application for transcribing audio and video files u
 - **⚙️ Advanced Mode**: Full control over transcription settings
 - **🌍 EU Compliance**: Uses Deepgram's EU endpoint for data privacy
 - **📁 Drag & Drop**: Modern file upload with drag-and-drop support
-- **🎯 Multi-format Support**: MP3, WAV, MP4, M4A, and more (up to 2GB)
+- **🎯 Multi-format Support**: MP3, WAV, MP4, M4A, WebM, and more (up to 2GB)
 - **🌐 Multi-language**: Supports English, Dutch, and mixed language detection
 - **📊 Multiple Output Formats**: Plain text, JSON, WebVTT, SRT
 - **🔒 Secure**: API key stored server-side, never exposed to browser
 - **🐳 Docker Ready**: Easy deployment with Docker Compose
 
-## 🖼️ Screenshots
+## 🎨 Design
 
-### Simple Mode
-Clean, minimal interface for quick transcriptions with automatic settings.
-
-### Advanced Mode
-Full control over language, model selection, formatting options, and output formats.
+Beautiful modern interface featuring:
+- **Purple gradient background** for a premium look
+- **Smooth animations** and transitions
+- **Drag & drop file upload** with visual feedback
+- **Clean, intuitive controls** with Simple and Advanced modes
+- **Responsive design** that works on all devices
 
 ## 🚀 Quick Start
 
