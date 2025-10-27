@@ -21,6 +21,8 @@ A modern, browser-based web application for transcribing audio and video files u
 
 ## 🎨 Design
 
+![Deepgram Transcriber Screenshot](screenshot.jpg)
+
 Beautiful modern interface featuring:
 - **Purple gradient background** for a premium look
 - **Smooth animations** and transitions
