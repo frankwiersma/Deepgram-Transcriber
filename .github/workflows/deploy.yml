@@ -8,11 +8,11 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Deploy to VM
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -21,18 +21,15 @@ jobs:
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
             cd /home/azureuser/markitdown-converter/Deepgram-Transcriber
-            
+
             # Pull latest changes
             git pull origin main
-            
-            # Install/update dependencies
-            npm install --production
-            
+
             # Rebuild and restart container
             docker compose down
             docker compose build --no-cache
             docker compose up -d
-            
+
             # Wait for container to be healthy
             echo "Waiting for container to be healthy..."
             for i in {1..30}; do
@@ -43,7 +40,7 @@ jobs:
               echo "Waiting... ($i/30)"
               sleep 2
             done
-            
+
             # Check if container is at least running
             if docker ps | grep -q deepgram-transcriber; then
               echo "Container is running (health check may not be configured)"
@@ -53,7 +50,7 @@ jobs:
               docker logs deepgram-transcriber
               exit 1
             fi
-      
+
       - name: Verify deployment
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -61,6 +58,6 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
-            # Check if service responds
-            curl -f https://transcribe.co-evolve.nl/health || exit 1
+            # Check if service responds (using localhost to bypass Cloudflare)
+            curl -f http://localhost:3456/health || exit 1
             echo "Deployment successful! Service is responding."
