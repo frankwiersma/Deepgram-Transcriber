@@ -1,8 +1,68 @@
-node_modules
-npm-debug.log
-.env
+# Git
 .git
 .gitignore
-README.md
+.gitattributes
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+.npm
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
 .DS_Store
-uploads/*
+
+# Documentation
+README.md
+CHANGELOG.md
+LICENSE
+*.md
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Testing
+test/
+tests/
+*.test.js
+*.spec.js
+coverage/
+.nyc_output
+
+# Uploads and temp files
+uploads/
+tmp/
+temp/
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# Build artifacts
+dist/
+build/
+.cache/
+
+# Backup files
+*.backup
+*.bak
+server.js.backup*
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
