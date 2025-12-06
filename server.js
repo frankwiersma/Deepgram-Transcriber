@@ -9,8 +9,16 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3456;
 
-// Initialize Deepgram client
-const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
+// Initialize Deepgram client with EU endpoint
+const deepgram = createClient(process.env.DEEPGRAM_API_KEY, {
+  global: {
+    fetch: {
+      options: {
+        url: "https://api.eu.deepgram.com"
+      }
+    }
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -67,6 +75,15 @@ function applySpeakerNames(result, speakerNames) {
   return result;
 }
 
+// Helper function to calculate cost based on Deepgram pricing
+function calculateCost(durationSeconds, model) {
+  // Deepgram Nova-2 pricing: $0.0043 per minute
+  // Nova-3 pricing: $0.0059 per minute
+  const pricePerMinute = model === 'nova-2' ? 0.0043 : 0.0059;
+  const minutes = durationSeconds / 60;
+  return (minutes * pricePerMinute).toFixed(4);
+}
+
 // Main transcription endpoint
 app.post('/transcribe', upload.single('audio'), async (req, res) => {
   let filePath = null;
@@ -79,14 +96,15 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     filePath = req.file.path;
 
     // Parse options from request
+    const modelName = req.body.model || 'nova-2';
     const options = {
-      model: req.body.model || 'nova-3',  // Latest Nova-3 model
+      model: modelName,
       smart_format: req.body.smart_format !== 'false',
       language: req.body.language || 'en',
       utterances: req.body.utterances !== 'false',
       punctuate: true,
       paragraphs: true,
-      diarize: req.body.enable_speakers === 'true',  // NEW: Speaker diarization
+      diarize: req.body.enable_speakers === 'true',
       detect_language: req.body.language === 'auto'
     };
 
@@ -95,7 +113,6 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     if (req.body.speaker_names) {
       try {
         const names = JSON.parse(req.body.speaker_names);
-        // Convert array to object: {0: "John", 1: "Sarah"}
         speakerNames = names.reduce((acc, name, index) => {
           if (name && name.trim()) {
             acc[index] = name.trim();
@@ -117,14 +134,24 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     );
 
     if (error) {
-      throw new Error(`Deepgram API error: ${error.message}`);
+      console.error('Deepgram API error:', error);
+      throw new Error(`Deepgram API error: ${JSON.stringify(error)}`);
     }
+
+    // Extract duration and metadata
+    const metadata = result.metadata || {};
+    const duration = metadata.duration || 0;
+    const channels = result.results?.channels || [];
 
     // Extract transcript
     let transcriptResult;
-    if (result.results && result.results.channels && result.results.channels[0]) {
-      const channel = result.results.channels[0];
-      const alternative = channel.alternatives[0];
+    if (channels.length > 0 && channels[0]) {
+      const channel = channels[0];
+      const alternative = channel.alternatives?.[0];
+
+      if (!alternative) {
+        throw new Error('No alternative transcription found in response');
+      }
 
       if (options.utterances && alternative.paragraphs) {
         // Format with utterances (includes speaker info if diarization enabled)
@@ -135,7 +162,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
             speaker: p.speaker !== undefined ? p.speaker : null,
             start: p.start,
             end: p.end,
-            text: p.sentences.map(s => s.text).join(' '),
+            text: p.sentences?.map(s => s.text).join(' ') || '',
             confidence: alternative.confidence
           }))
         };
@@ -158,13 +185,20 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     // Clean up the uploaded file
     await cleanupFile(filePath);
 
+    // Calculate estimated cost
+    const estimatedCost = calculateCost(duration, modelName);
+
     res.json({
       success: true,
       result: transcriptResult,
       metadata: {
-        model: options.model,
+        model: modelName,
         diarization_enabled: options.diarize,
-        language: result.results?.channels?.[0]?.detected_language || options.language
+        language: channels[0]?.detected_language || options.language,
+        duration: duration,
+        duration_formatted: `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')}`,
+        estimated_cost: `$${estimatedCost}`,
+        request_id: metadata.request_id
       }
     });
 
@@ -193,4 +227,5 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Visit http://localhost:${PORT} to use the transcriber`);
+  console.log(`Using Deepgram EU endpoint: https://api.eu.deepgram.com`);
 });
