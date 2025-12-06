@@ -9,12 +9,16 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3456;
 
-// Initialize Deepgram client with EU endpoint
+// Determine API endpoint based on environment variable (default to EU)
+const USE_EU_ENDPOINT = process.env.USE_EU_ENDPOINT !== 'false';
+const API_ENDPOINT = USE_EU_ENDPOINT ? 'https://api.eu.deepgram.com' : 'https://api.deepgram.com';
+
+// Initialize Deepgram client with configurable endpoint
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY, {
   global: {
     fetch: {
       options: {
-        url: "https://api.eu.deepgram.com"
+        url: API_ENDPOINT
       }
     }
   }
@@ -77,9 +81,14 @@ function applySpeakerNames(result, speakerNames) {
 
 // Helper function to calculate cost based on Deepgram pricing
 function calculateCost(durationSeconds, model) {
-  // Deepgram Nova-2 pricing: $0.0043 per minute
-  // Nova-3 pricing: $0.0059 per minute
-  const pricePerMinute = model === 'nova-2' ? 0.0043 : 0.0059;
+  // Deepgram pricing (as of 2025)
+  const pricing = {
+    'nova-3': 0.0059,
+    'nova-2': 0.0043,
+    'base': 0.0025,
+    'enhanced': 0.0037
+  };
+  const pricePerMinute = pricing[model] || 0.0059;
   const minutes = durationSeconds / 60;
   return (minutes * pricePerMinute).toFixed(4);
 }
@@ -96,7 +105,7 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
     filePath = req.file.path;
 
     // Parse options from request
-    const modelName = req.body.model || 'nova-2';
+    const modelName = req.body.model || 'nova-3';
     const options = {
       model: modelName,
       smart_format: req.body.smart_format !== 'false',
@@ -198,7 +207,8 @@ app.post('/transcribe', upload.single('audio'), async (req, res) => {
         duration: duration,
         duration_formatted: `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')}`,
         estimated_cost: `$${estimatedCost}`,
-        request_id: metadata.request_id
+        request_id: metadata.request_id,
+        api_endpoint: USE_EU_ENDPOINT ? 'EU' : 'US'
       }
     });
 
@@ -227,5 +237,5 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Visit http://localhost:${PORT} to use the transcriber`);
-  console.log(`Using Deepgram EU endpoint: https://api.eu.deepgram.com`);
+  console.log(`Using Deepgram ${USE_EU_ENDPOINT ? 'EU' : 'US'} endpoint: ${API_ENDPOINT}`);
 });

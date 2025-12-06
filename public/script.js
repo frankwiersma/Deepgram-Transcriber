@@ -164,7 +164,7 @@ async function handleTranscribe() {
 
         // Add options based on mode
         if (currentMode === 'simple') {
-            formData.append('model', 'nova-2');
+            formData.append('model', 'nova-3');
             formData.append('smart_format', 'true');
             formData.append('language', 'auto');
             formData.append('utterances', 'true');
