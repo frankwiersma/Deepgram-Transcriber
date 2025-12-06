@@ -1,13 +1,16 @@
 require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
-const axios = require('axios');
+const { createClient } = require('@deepgram/sdk');
 const fs = require('fs').promises;
 const path = require('path');
 const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3456;
+
+// Initialize Deepgram client
+const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
 
 // Middleware
 app.use(cors());
@@ -31,7 +34,7 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: {
     fileSize: 2 * 1024 * 1024 * 1024 // 2GB limit
@@ -47,124 +50,134 @@ async function cleanupFile(filePath) {
   }
 }
 
+// Helper function to apply speaker names to transcript
+function applySpeakerNames(result, speakerNames) {
+  if (!speakerNames || Object.keys(speakerNames).length === 0) {
+    return result;
+  }
+
+  // Apply names to utterances if present
+  if (result.type === 'utterances' && Array.isArray(result.content)) {
+    result.content = result.content.map(utterance => ({
+      ...utterance,
+      speaker: speakerNames[utterance.speaker] || `Speaker ${utterance.speaker}`
+    }));
+  }
+
+  return result;
+}
+
 // Main transcription endpoint
 app.post('/transcribe', upload.single('audio'), async (req, res) => {
   let filePath = null;
-  
+
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
     filePath = req.file.path;
-    
+
     // Parse options from request
     const options = {
-      model: req.body.model || 'nova-3',
+      model: req.body.model || 'nova-3',  // Latest Nova-3 model
       smart_format: req.body.smart_format !== 'false',
-      language: req.body.language || 'auto',
+      language: req.body.language || 'en',
       utterances: req.body.utterances !== 'false',
-      detect_language: req.body.language === 'auto',
-      output_format: req.body.output_format || 'text'
+      punctuate: true,
+      paragraphs: true,
+      diarize: req.body.enable_speakers === 'true',  // NEW: Speaker diarization
+      detect_language: req.body.language === 'auto'
     };
 
-    // Build query parameters
-    const params = new URLSearchParams({
-      model: options.model,
-      smart_format: options.smart_format,
-      utterances: options.utterances
-    });
-
-    // Handle language settings
-    if (!options.detect_language) {
-      params.append('language', options.language);
-    } else {
-      params.append('detect_language', 'true');
-    }
-
-    // Add format-specific parameters
-    if (options.output_format === 'webvtt' || options.output_format === 'srt') {
-      params.append('format', options.output_format);
+    // Parse speaker names if provided
+    let speakerNames = {};
+    if (req.body.speaker_names) {
+      try {
+        const names = JSON.parse(req.body.speaker_names);
+        // Convert array to object: {0: "John", 1: "Sarah"}
+        speakerNames = names.reduce((acc, name, index) => {
+          if (name && name.trim()) {
+            acc[index] = name.trim();
+          }
+          return acc;
+        }, {});
+      } catch (e) {
+        console.error('Error parsing speaker names:', e);
+      }
     }
 
     // Read file content
-    const fileContent = await fs.readFile(filePath);
-    
-    // Determine content type
-    const mimeType = req.file.mimetype || 'audio/wav';
-    
-    // Make request to Deepgram API
-    const deepgramUrl = `${process.env.DEEPGRAM_API_URL || 'https://eu.api.deepgram.com/v1/listen'}?${params.toString()}`;
-    
-    const response = await axios.post(deepgramUrl, fileContent, {
-      headers: {
-        'Authorization': `Token ${process.env.DEEPGRAM_API_KEY}`,
-        'Content-Type': mimeType
-      },
-      maxBodyLength: Infinity,
-      maxContentLength: Infinity
-    });
+    const audioBuffer = await fs.readFile(filePath);
 
-    // Handle different output formats
-    let result;
-    switch (options.output_format) {
-      case 'json':
-        result = response.data;
-        break;
-      case 'webvtt':
-      case 'srt':
-        result = {
-          type: 'caption',
-          format: options.output_format,
-          content: response.data
+    // Transcribe using Deepgram SDK
+    const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
+      audioBuffer,
+      options
+    );
+
+    if (error) {
+      throw new Error(`Deepgram API error: ${error.message}`);
+    }
+
+    // Extract transcript
+    let transcriptResult;
+    if (result.results && result.results.channels && result.results.channels[0]) {
+      const channel = result.results.channels[0];
+      const alternative = channel.alternatives[0];
+
+      if (options.utterances && alternative.paragraphs) {
+        // Format with utterances (includes speaker info if diarization enabled)
+        const paragraphs = alternative.paragraphs.paragraphs || [];
+        transcriptResult = {
+          type: 'utterances',
+          content: paragraphs.map(p => ({
+            speaker: p.speaker !== undefined ? p.speaker : null,
+            start: p.start,
+            end: p.end,
+            text: p.sentences.map(s => s.text).join(' '),
+            confidence: alternative.confidence
+          }))
         };
-        break;
-      default:
-        // Extract transcript text
-        if (response.data.results && response.data.results.channels && response.data.results.channels[0]) {
-          const channel = response.data.results.channels[0];
-          
-          if (options.utterances && channel.alternatives && channel.alternatives[0].paragraphs) {
-            // Format with utterances
-            const paragraphs = channel.alternatives[0].paragraphs.paragraphs || [];
-            result = {
-              type: 'utterances',
-              content: paragraphs.map(p => ({
-                speaker: p.speaker,
-                start: p.start,
-                end: p.end,
-                text: p.sentences.map(s => s.text).join(' ')
-              }))
-            };
-          } else if (channel.alternatives && channel.alternatives[0].transcript) {
-            // Simple transcript
-            result = {
-              type: 'text',
-              content: channel.alternatives[0].transcript
-            };
-          } else {
-            throw new Error('Unable to extract transcript from response');
-          }
-        } else {
-          throw new Error('Invalid response format from Deepgram');
-        }
+
+        // Apply custom speaker names
+        transcriptResult = applySpeakerNames(transcriptResult, speakerNames);
+      } else if (alternative.transcript) {
+        // Simple transcript
+        transcriptResult = {
+          type: 'text',
+          content: alternative.transcript
+        };
+      } else {
+        throw new Error('Unable to extract transcript from response');
+      }
+    } else {
+      throw new Error('Invalid response format from Deepgram');
     }
 
     // Clean up the uploaded file
     await cleanupFile(filePath);
-    
-    res.json({ success: true, result });
+
+    res.json({
+      success: true,
+      result: transcriptResult,
+      metadata: {
+        model: options.model,
+        diarization_enabled: options.diarize,
+        language: result.results?.channels?.[0]?.detected_language || options.language
+      }
+    });
 
   } catch (error) {
     console.error('Transcription error:', error);
-    
+
     // Clean up file if it exists
     if (filePath) {
       await cleanupFile(filePath);
     }
-    
-    res.status(500).json({ 
-      error: 'Transcription failed', 
+
+    res.status(500).json({
+      error: 'Transcription failed',
       message: error.message,
       details: error.response?.data || null
     });
