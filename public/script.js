@@ -12,11 +12,17 @@ const errorMessage = document.getElementById('errorMessage');
 const modeBtns = document.querySelectorAll('.mode-btn');
 const copyBtn = document.getElementById('copyBtn');
 const downloadBtn = document.getElementById('downloadBtn');
+const enableSpeakersCheckbox = document.getElementById('enableSpeakers');
+const speakerNamesSection = document.getElementById('speakerNamesSection');
+const speakerNamesContainer = document.getElementById('speakerNamesContainer');
+const addSpeakerBtn = document.getElementById('addSpeakerBtn');
+const metadataDisplay = document.getElementById('metadataDisplay');
 
 // State
 let selectedFile = null;
 let currentMode = 'simple';
 let lastTranscriptionResult = null;
+let speakerCount = 2;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -32,21 +38,25 @@ function setupEventListeners() {
     // File upload
     dropZone.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', handleFileSelect);
-    
+
     // Drag and drop
     dropZone.addEventListener('dragover', handleDragOver);
     dropZone.addEventListener('dragleave', handleDragLeave);
     dropZone.addEventListener('drop', handleDrop);
-    
+
     // Remove file
     removeFileBtn.addEventListener('click', removeFile);
-    
+
     // Transcribe
     transcribeBtn.addEventListener('click', handleTranscribe);
-    
+
     // Result actions
     copyBtn.addEventListener('click', copyToClipboard);
     downloadBtn.addEventListener('click', downloadResult);
+
+    // Speaker diarization
+    enableSpeakersCheckbox.addEventListener('change', toggleSpeakerNames);
+    addSpeakerBtn.addEventListener('click', addSpeakerInput);
 }
 
 function switchMode(mode) {
@@ -55,6 +65,28 @@ function switchMode(mode) {
         btn.classList.toggle('active', btn.dataset.mode === mode);
     });
     advancedOptions.style.display = mode === 'advanced' ? 'block' : 'none';
+}
+
+function toggleSpeakerNames() {
+    speakerNamesSection.style.display = enableSpeakersCheckbox.checked ? 'block' : 'none';
+}
+
+function addSpeakerInput() {
+    const newInput = document.createElement('div');
+    newInput.className = 'speaker-name-input';
+    newInput.innerHTML = `<input type="text" placeholder="Speaker ${speakerCount} name" data-speaker="${speakerCount}">`;
+    speakerNamesContainer.appendChild(newInput);
+    speakerCount++;
+}
+
+function getSpeakerNames() {
+    const inputs = speakerNamesContainer.querySelectorAll('input[data-speaker]');
+    const names = [];
+    inputs.forEach(input => {
+        const index = parseInt(input.dataset.speaker);
+        names[index] = input.value.trim();
+    });
+    return names;
 }
 
 function handleFileSelect(e) {
@@ -77,7 +109,7 @@ function handleDragLeave(e) {
 function handleDrop(e) {
     e.preventDefault();
     dropZone.classList.remove('drag-over');
-    
+
     const files = e.dataTransfer.files;
     if (files.length > 0) {
         setSelectedFile(files[0]);
@@ -91,14 +123,14 @@ function setSelectedFile(file) {
         showError('Please select an audio or video file');
         return;
     }
-    
+
     // Validate file size (2GB limit)
     const maxSize = 2 * 1024 * 1024 * 1024;
     if (file.size > maxSize) {
         showError('File size exceeds 2GB limit');
         return;
     }
-    
+
     selectedFile = file;
     fileName.textContent = file.name;
     dropZone.style.display = 'none';
@@ -119,47 +151,55 @@ function removeFile() {
 
 async function handleTranscribe() {
     if (!selectedFile) return;
-    
+
     // Update UI
     setLoading(true);
     hideError();
     hideResults();
-    
+
     try {
         // Prepare form data
         const formData = new FormData();
         formData.append('audio', selectedFile);
-        
+
         // Add options based on mode
         if (currentMode === 'simple') {
-            formData.append('model', 'nova-3');
+            formData.append('model', 'nova-2');
             formData.append('smart_format', 'true');
             formData.append('language', 'auto');
             formData.append('utterances', 'true');
             formData.append('output_format', 'text');
+            formData.append('enable_speakers', 'false');
         } else {
             formData.append('model', document.getElementById('model').value);
             formData.append('smart_format', document.getElementById('smartFormatting').checked);
             formData.append('language', document.getElementById('language').value);
             formData.append('utterances', document.getElementById('utterances').checked);
             formData.append('output_format', document.getElementById('outputFormat').value);
+            formData.append('enable_speakers', enableSpeakersCheckbox.checked);
+
+            // Add speaker names if enabled
+            if (enableSpeakersCheckbox.checked) {
+                const speakerNames = getSpeakerNames();
+                formData.append('speaker_names', JSON.stringify(speakerNames));
+            }
         }
-        
+
         // Make request
         const response = await fetch('/transcribe', {
             method: 'POST',
             body: formData
         });
-        
+
         const data = await response.json();
-        
+
         if (!response.ok) {
             throw new Error(data.message || 'Transcription failed');
         }
-        
+
         // Display results
-        displayResults(data.result);
-        
+        displayResults(data.result, data.metadata);
+
     } catch (error) {
         console.error('Transcription error:', error);
         showError(error.message || 'An error occurred during transcription');
@@ -168,23 +208,32 @@ async function handleTranscribe() {
     }
 }
 
-function displayResults(result) {
+function displayResults(result, metadata) {
     lastTranscriptionResult = result;
     resultsSection.style.display = 'block';
-    
+
+    // Display metadata if available
+    if (metadata) {
+        metadataDisplay.style.display = 'flex';
+        document.getElementById('metadataDuration').textContent = metadata.duration_formatted || metadata.duration || '-';
+        document.getElementById('metadataModel').textContent = metadata.model || '-';
+        document.getElementById('metadataLanguage').textContent = metadata.language || '-';
+        document.getElementById('metadataCost').textContent = metadata.estimated_cost || '-';
+    }
+
     // Clear previous content
     resultContent.innerHTML = '';
-    
+
     switch (result.type) {
         case 'text':
             resultContent.innerHTML = `<pre>${escapeHtml(result.content)}</pre>`;
             break;
-            
+
         case 'utterances':
             const utterancesHtml = result.content.map(utterance => `
                 <div class="utterance">
                     <div class="utterance-header">
-                        <span class="speaker">Speaker ${utterance.speaker}</span>
+                        <span class="speaker">${escapeHtml(utterance.speaker || 'Unknown')}</span>
                         <span class="timestamp">${formatTime(utterance.start)} - ${formatTime(utterance.end)}</span>
                     </div>
                     <div class="utterance-text">${escapeHtml(utterance.text)}</div>
@@ -192,11 +241,11 @@ function displayResults(result) {
             `).join('');
             resultContent.innerHTML = utterancesHtml;
             break;
-            
+
         case 'json':
             resultContent.innerHTML = `<pre>${JSON.stringify(result, null, 2)}</pre>`;
             break;
-            
+
         case 'caption':
             resultContent.innerHTML = `<pre>${escapeHtml(result.content)}</pre>`;
             break;
@@ -218,14 +267,14 @@ function escapeHtml(text) {
 async function copyToClipboard() {
     try {
         let textToCopy = '';
-        
+
         switch (lastTranscriptionResult.type) {
             case 'text':
                 textToCopy = lastTranscriptionResult.content;
                 break;
             case 'utterances':
                 textToCopy = lastTranscriptionResult.content
-                    .map(u => `[${formatTime(u.start)} - ${formatTime(u.end)}] Speaker ${u.speaker}: ${u.text}`)
+                    .map(u => `[${formatTime(u.start)} - ${formatTime(u.end)}] ${u.speaker}: ${u.text}`)
                     .join('\n\n');
                 break;
             case 'json':
@@ -235,16 +284,16 @@ async function copyToClipboard() {
                 textToCopy = lastTranscriptionResult.content;
                 break;
         }
-        
+
         await navigator.clipboard.writeText(textToCopy);
-        
+
         // Show feedback
         const originalHtml = copyBtn.innerHTML;
-        copyBtn.innerHTML = '';
+        copyBtn.innerHTML = '✓';
         setTimeout(() => {
             copyBtn.innerHTML = originalHtml;
         }, 2000);
-        
+
     } catch (error) {
         console.error('Copy failed:', error);
         showError('Failed to copy to clipboard');
@@ -255,33 +304,33 @@ function downloadResult() {
     let content = '';
     let filename = 'transcription';
     let mimeType = 'text/plain';
-    
+
     switch (lastTranscriptionResult.type) {
         case 'text':
             content = lastTranscriptionResult.content;
             filename += '.txt';
             break;
-            
+
         case 'utterances':
             content = lastTranscriptionResult.content
-                .map(u => `[${formatTime(u.start)} - ${formatTime(u.end)}] Speaker ${u.speaker}: ${u.text}`)
+                .map(u => `[${formatTime(u.start)} - ${formatTime(u.end)}] ${u.speaker}: ${u.text}`)
                 .join('\n\n');
             filename += '.txt';
             break;
-            
+
         case 'json':
             content = JSON.stringify(lastTranscriptionResult, null, 2);
             filename += '.json';
             mimeType = 'application/json';
             break;
-            
+
         case 'caption':
             content = lastTranscriptionResult.content;
             filename += `.${lastTranscriptionResult.format}`;
             mimeType = lastTranscriptionResult.format === 'webvtt' ? 'text/vtt' : 'text/plain';
             break;
     }
-    
+
     // Create and download file
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
@@ -319,5 +368,6 @@ function hideError() {
 
 function hideResults() {
     resultsSection.style.display = 'none';
+    metadataDisplay.style.display = 'none';
     lastTranscriptionResult = null;
 }
