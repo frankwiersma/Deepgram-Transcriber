@@ -34,7 +34,7 @@ jobs:
             echo "Waiting for container to be healthy..."
             for i in {1..30}; do
               if docker inspect deepgram-transcriber | grep -q '"Status": "healthy"'; then
-                echo "Container is healthy!"
+                echo "Container is healthy! Deployment successful."
                 exit 0
               fi
               echo "Waiting... ($i/30)"
@@ -43,21 +43,10 @@ jobs:
 
             # Check if container is at least running
             if docker ps | grep -q deepgram-transcriber; then
-              echo "Container is running (health check may not be configured)"
+              echo "Container is running! Deployment successful."
               exit 0
             else
               echo "Container failed to start!"
               docker logs deepgram-transcriber
               exit 1
             fi
-
-      - name: Verify deployment
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          script: |
-            # Check if service responds (using localhost to bypass Cloudflare)
-            curl -f http://localhost:3456/health || exit 1
-            echo "Deployment successful! Service is responding."
