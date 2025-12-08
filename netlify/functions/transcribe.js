@@ -1,4 +1,5 @@
 import { createClient } from '@deepgram/sdk';
+import { getStore } from '@netlify/blobs';
 
 // Helper function to apply speaker names
 function applySpeakerNames(result, speakerNames) {
@@ -119,15 +120,41 @@ export default async (req) => {
       }
     }
 
-    // Read audio file as buffer
-    const arrayBuffer = await audioFile.arrayBuffer();
-    const audioBuffer = Buffer.from(arrayBuffer);
+    // For files larger than 4.5MB, use URL-based transcription to bypass Netlify's payload limit
+    const USE_URL_METHOD = audioFile.size > 4.5 * 1024 * 1024;
+    let result, error, blobUrl;
 
-    // Transcribe using Deepgram
-    const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
-      audioBuffer,
-      options
-    );
+    if (USE_URL_METHOD) {
+      // Upload to Netlify Blobs and get public URL
+      const store = getStore('audio-temp');
+      const blobKey = `${Date.now()}-${audioFile.name}`;
+
+      const arrayBuffer = await audioFile.arrayBuffer();
+      await store.set(blobKey, arrayBuffer, {
+        metadata: { contentType: audioFile.type }
+      });
+
+      // Get public URL for the blob
+      blobUrl = store.getPublicUrl(blobKey);
+
+      // Transcribe using URL
+      ({ result, error } = await deepgram.listen.prerecorded.transcribeUrl(
+        { url: blobUrl },
+        options
+      ));
+
+      // Clean up blob after transcription
+      await store.delete(blobKey);
+    } else {
+      // For smaller files, use direct buffer upload
+      const arrayBuffer = await audioFile.arrayBuffer();
+      const audioBuffer = Buffer.from(arrayBuffer);
+
+      ({ result, error } = await deepgram.listen.prerecorded.transcribeFile(
+        audioBuffer,
+        options
+      ));
+    }
 
     if (error) {
       console.error('Deepgram API error:', error);
