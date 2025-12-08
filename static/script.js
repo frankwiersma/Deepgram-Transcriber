@@ -170,6 +170,7 @@ async function handleTranscribe() {
             formData.append('utterances', 'true');
             formData.append('output_format', 'text');
             formData.append('enable_speakers', 'false');
+            formData.append('endpoint', 'us'); // Nova-3 requires US endpoint
         } else {
             formData.append('model', document.getElementById('model').value);
             formData.append('smart_format', document.getElementById('smartFormatting').checked);
@@ -177,6 +178,7 @@ async function handleTranscribe() {
             formData.append('utterances', document.getElementById('utterances').checked);
             formData.append('output_format', document.getElementById('outputFormat').value);
             formData.append('enable_speakers', enableSpeakersCheckbox.checked);
+            formData.append('endpoint', document.getElementById('endpoint').value);
 
             // Add speaker names if enabled
             if (enableSpeakersCheckbox.checked) {

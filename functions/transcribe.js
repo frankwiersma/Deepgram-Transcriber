@@ -45,9 +45,12 @@ export async function onRequestPost(context) {
   }
 
   try {
-    // Initialize Deepgram client
-    const USE_EU_ENDPOINT = env.USE_EU_ENDPOINT !== 'false';
-    const API_ENDPOINT = USE_EU_ENDPOINT ? 'https://api.eu.deepgram.com' : 'https://api.deepgram.com';
+    // Parse form data first to get endpoint preference
+    const formData = await request.formData();
+    const endpointParam = formData.get('endpoint') || 'eu'; // Default to EU
+
+    // Initialize Deepgram client with user-selected endpoint
+    const API_ENDPOINT = endpointParam === 'eu' ? 'https://api.eu.deepgram.com' : 'https://api.deepgram.com';
 
     if (!env.DEEPGRAM_API_KEY) {
       return new Response(JSON.stringify({ error: 'DEEPGRAM_API_KEY not configured' }), {
@@ -66,8 +69,7 @@ export async function onRequestPost(context) {
       }
     });
 
-    // Parse form data
-    const formData = await request.formData();
+    // Get audio file from already-parsed formData
     const audioFile = formData.get('audio');
 
     if (!audioFile) {
