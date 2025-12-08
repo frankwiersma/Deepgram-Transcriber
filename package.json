@@ -9,7 +9,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@netlify/functions": "^2.4.0",
-    "@deepgram/sdk": "^3.7.0"
+    "@deepgram/sdk": "^3.7.0",
+    "@netlify/blobs": "^10.4.2",
+    "@netlify/functions": "^2.4.0"
   }
 }
