@@ -2,15 +2,18 @@
   "name": "deepgram-transcriber",
   "version": "1.0.0",
   "type": "module",
-  "description": "A modern web app for transcribing audio/video using Deepgram's EU API",
+  "description": "A modern web app for transcribing audio/video using Deepgram API",
   "scripts": {
-    "dev": "netlify dev"
+    "dev": "wrangler pages dev static",
+    "deploy": "wrangler pages deploy static --project-name=deepgram-transcriber"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@deepgram/sdk": "^3.7.0",
-    "@netlify/blobs": "^10.4.2",
-    "@netlify/functions": "^2.4.0"
+    "@cloudflare/workers-types": "^4.20251205.0",
+    "@deepgram/sdk": "^3.7.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.53.0"
   }
 }

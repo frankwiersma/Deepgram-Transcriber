@@ -1,0 +1,16 @@
+name = "deepgram-transcriber"
+compatibility_date = "2024-12-08"
+
+pages_build_output_dir = "static"
+
+# R2 bucket binding for temporary audio storage
+[[r2_buckets]]
+binding = "AUDIO_BUCKET"
+bucket_name = "deepgram-audio-temp"
+preview_bucket_name = "deepgram-audio-temp-preview"
+
+[build]
+command = "npm install"
+
+[vars]
+USE_EU_ENDPOINT = "false"
