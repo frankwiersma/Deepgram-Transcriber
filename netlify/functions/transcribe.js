@@ -1,20 +1,5 @@
 import { createClient } from '@deepgram/sdk';
 
-// Determine API endpoint
-const USE_EU_ENDPOINT = process.env.USE_EU_ENDPOINT !== 'false';
-const API_ENDPOINT = USE_EU_ENDPOINT ? 'https://api.eu.deepgram.com' : 'https://api.deepgram.com';
-
-// Initialize Deepgram client
-const deepgram = createClient(process.env.DEEPGRAM_API_KEY, {
-  global: {
-    fetch: {
-      options: {
-        url: API_ENDPOINT
-      }
-    }
-  }
-});
-
 // Helper function to apply speaker names
 function applySpeakerNames(result, speakerNames) {
   if (!speakerNames || Object.keys(speakerNames).length === 0) {
@@ -54,6 +39,27 @@ export default async (req) => {
   }
 
   try {
+    // Initialize Deepgram client
+    const USE_EU_ENDPOINT = process.env.USE_EU_ENDPOINT !== 'false';
+    const API_ENDPOINT = USE_EU_ENDPOINT ? 'https://api.eu.deepgram.com' : 'https://api.deepgram.com';
+
+    if (!process.env.DEEPGRAM_API_KEY) {
+      return new Response(JSON.stringify({ error: 'DEEPGRAM_API_KEY not configured' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    const deepgram = createClient(process.env.DEEPGRAM_API_KEY, {
+      global: {
+        fetch: {
+          options: {
+            url: API_ENDPOINT
+          }
+        }
+      }
+    });
+
     // Parse form data
     const formData = await req.formData();
     const audioFile = formData.get('audio');
