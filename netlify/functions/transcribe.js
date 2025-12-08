@@ -73,16 +73,22 @@ export default async (req) => {
 
     // Get transcription options
     const modelName = formData.get('model') || 'nova-3';
+    const languageParam = formData.get('language') || 'en';
     const options = {
       model: modelName,
       smart_format: formData.get('smart_format') !== 'false',
-      language: formData.get('language') || 'en',
       utterances: formData.get('utterances') !== 'false',
       punctuate: true,
       paragraphs: true,
-      diarize: formData.get('enable_speakers') === 'true',
-      detect_language: formData.get('language') === 'auto'
+      diarize: formData.get('enable_speakers') === 'true'
     };
+
+    // Only set language OR detect_language, not both
+    if (languageParam === 'auto') {
+      options.detect_language = true;
+    } else {
+      options.language = languageParam;
+    }
 
     // Parse speaker names
     let speakerNames = {};
