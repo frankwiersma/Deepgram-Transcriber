@@ -33,6 +33,17 @@ function calculateCost(durationSeconds, model) {
 export async function onRequestPost(context) {
   const { request, env } = context;
 
+  // IP Whitelist - only allow specific IPs
+  const ALLOWED_IPS = ['165.85.178.96', '178.224.222.124'];
+  const clientIP = request.headers.get('CF-Connecting-IP');
+
+  if (!ALLOWED_IPS.includes(clientIP)) {
+    return new Response('Access Denied: Your IP address is not authorized.', {
+      status: 403,
+      headers: { 'Content-Type': 'text/plain' }
+    });
+  }
+
   try {
     // Initialize Deepgram client
     const USE_EU_ENDPOINT = env.USE_EU_ENDPOINT !== 'false';
