@@ -71,6 +71,18 @@ export default async (req) => {
       });
     }
 
+    // Check file size (Netlify has a 6MB payload limit)
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (Deepgram limit)
+    if (audioFile.size > MAX_FILE_SIZE) {
+      return new Response(JSON.stringify({
+        error: 'File too large',
+        message: `File size (${(audioFile.size / 1024 / 1024).toFixed(2)}MB) exceeds the 50MB limit. Please use a smaller file or compress your audio.`
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     // Get transcription options
     const modelName = formData.get('model') || 'nova-3';
     const languageParam = formData.get('language') || 'en';
