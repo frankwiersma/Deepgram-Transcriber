@@ -186,7 +186,7 @@ async function handleTranscribe() {
         }
 
         // Make request
-        const response = await fetch('/transcribe', {
+        const response = await fetch('/.netlify/functions/transcribe', {
             method: 'POST',
             body: formData
         });
