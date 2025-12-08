@@ -25,4 +25,3 @@
   from = "/*"
   to = "/index.html"
   status = 200
-  conditions = {path = "!/_*", path = "!/transcribe", path = "!/api/*"}
