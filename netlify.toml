@@ -10,18 +10,6 @@
   node_bundler = "esbuild"
 
 [[redirects]]
-  from = "/transcribe"
-  to = "/.netlify/functions/transcribe"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/transcribe"
-  to = "/.netlify/functions/transcribe"
-  status = 200
-  force = true
-
-[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
