@@ -9,6 +9,10 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+[functions."transcribe"]
+  # Increase timeout for longer audio files (max 26 seconds on paid plans)
+  timeout = 26
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
