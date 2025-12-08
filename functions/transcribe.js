@@ -143,7 +143,8 @@ export async function onRequestPost(context) {
     } else {
       // For smaller files, use direct buffer upload
       const arrayBuffer = await audioFile.arrayBuffer();
-      const audioBuffer = Buffer.from(arrayBuffer);
+      // Convert ArrayBuffer to Uint8Array (Cloudflare Workers compatible)
+      const audioBuffer = new Uint8Array(arrayBuffer);
 
       ({ result, error } = await deepgram.listen.prerecorded.transcribeFile(
         audioBuffer,
