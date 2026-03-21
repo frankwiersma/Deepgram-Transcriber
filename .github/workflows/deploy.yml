@@ -1,52 +1,22 @@
-name: Deploy to Azure VM
+name: Deploy to dockers
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Deploy to VM
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
-            cd /home/azureuser/deepgram-transcriber
-
-            # Pull latest changes
+            cd ~/deepgram-transcriber
             git pull origin main
-
-            # Rebuild and restart container
-            docker compose down
             docker compose build --no-cache
             docker compose up -d
-
-            # Wait for container to be healthy
-            echo "Waiting for container to be healthy..."
-            for i in {1..30}; do
-              if docker inspect deepgram-transcriber | grep -q '"Status": "healthy"'; then
-                echo "Container is healthy! Deployment successful."
-                exit 0
-              fi
-              echo "Waiting... ($i/30)"
-              sleep 2
-            done
-
-            # Check if container is at least running
-            if docker ps | grep -q deepgram-transcriber; then
-              echo "Container is running! Deployment successful."
-              exit 0
-            else
-              echo "Container failed to start!"
-              docker logs deepgram-transcriber
-              exit 1
-            fi
+            echo "Deployed at $(date)"
